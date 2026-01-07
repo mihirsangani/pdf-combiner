@@ -316,10 +316,19 @@
             selectedFiles.forEach((file, index) => {
                 const fileItem = document.createElement('div');
                 fileItem.className = 'file-item';
-                fileItem.innerHTML = `
-                    <span class="file-name">📄 ${file.name}</span>
-                    <button type="button" class="remove-btn" onclick="removeFile(${index})">Remove</button>
-                `;
+                
+                const fileName = document.createElement('span');
+                fileName.className = 'file-name';
+                fileName.textContent = `📄 ${file.name}`;
+                
+                const removeBtn = document.createElement('button');
+                removeBtn.type = 'button';
+                removeBtn.className = 'remove-btn';
+                removeBtn.textContent = 'Remove';
+                removeBtn.addEventListener('click', () => removeFile(index));
+                
+                fileItem.appendChild(fileName);
+                fileItem.appendChild(removeBtn);
                 fileList.appendChild(fileItem);
             });
 

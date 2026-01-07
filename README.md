@@ -46,12 +46,17 @@ pip install -r requirements.txt
 python app.py
 ```
 
-2. Open your web browser and navigate to:
+2. For development with debug mode enabled:
+```bash
+FLASK_DEBUG=true python app.py
+```
+
+3. Open your web browser and navigate to:
 ```
 http://localhost:5000
 ```
 
-3. Use the application:
+4. Use the application:
    - Click on the upload area or drag and drop multiple PDF files
    - Enter a custom name for the combined PDF (optional)
    - Click "Combine PDFs" button

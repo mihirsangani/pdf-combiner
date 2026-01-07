@@ -80,7 +80,7 @@ def combine_pdfs():
         for file_path in uploaded_files:
             try:
                 os.remove(file_path)
-            except:
+            except (OSError, FileNotFoundError):
                 pass
         
         # Send the combined PDF
@@ -96,4 +96,8 @@ def combine_pdfs():
 
 
 if __name__ == '__main__':
-    app.run(debug=True, host='0.0.0.0', port=5000)
+    # Note: For production use, set debug=False and use a production WSGI server like gunicorn
+    # Example: gunicorn -w 4 -b 0.0.0.0:5000 app:app
+    import os
+    debug_mode = os.environ.get('FLASK_DEBUG', 'False').lower() == 'true'
+    app.run(debug=debug_mode, host='0.0.0.0', port=5000)
