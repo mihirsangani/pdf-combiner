@@ -1,0 +1,149 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:15-alpine
+    container_name: fileforge-postgres-prod
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - fileforge-network
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    container_name: fileforge-redis-prod
+    command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD}
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - fileforge-network
+    restart: unless-stopped
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+      target: production
+    container_name: fileforge-backend-prod
+    env_file:
+      - ./backend/.env.production
+    volumes:
+      - uploads_data:/app/uploads
+      - temp_data:/app/temp
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    command: gunicorn app.main:app -w 4 -k uvicorn.workers.UvicornWorker --bind 0.0.0.0:8000
+    networks:
+      - fileforge-network
+    restart: unless-stopped
+    deploy:
+      replicas: 2
+      resources:
+        limits:
+          cpus: '1'
+          memory: 1G
+
+  celery-worker:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+      target: production
+    container_name: fileforge-celery-worker-prod
+    env_file:
+      - ./backend/.env.production
+    volumes:
+      - uploads_data:/app/uploads
+      - temp_data:/app/temp
+    depends_on:
+      - redis
+      - postgres
+    command: celery -A app.workers.celery_app worker --loglevel=info --concurrency=8
+    networks:
+      - fileforge-network
+    restart: unless-stopped
+    deploy:
+      replicas: 2
+      resources:
+        limits:
+          cpus: '2'
+          memory: 2G
+
+  celery-beat:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+      target: production
+    container_name: fileforge-celery-beat-prod
+    env_file:
+      - ./backend/.env.production
+    depends_on:
+      - redis
+      - postgres
+    command: celery -A app.workers.celery_app beat --loglevel=info
+    networks:
+      - fileforge-network
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      target: production
+    container_name: fileforge-frontend-prod
+    env_file:
+      - ./frontend/.env.production
+    networks:
+      - fileforge-network
+    restart: unless-stopped
+    deploy:
+      replicas: 2
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
+
+  nginx:
+    image: nginx:alpine
+    container_name: fileforge-nginx-prod
+    volumes:
+      - ./nginx/nginx.prod.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/conf.d:/etc/nginx/conf.d:ro
+      - ./certbot/conf:/etc/letsencrypt:ro
+      - ./certbot/www:/var/www/certbot:ro
+    ports:
+      - "80:80"
+      - "443:443"
+    depends_on:
+      - frontend
+      - backend
+    networks:
+      - fileforge-network
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+  redis_data:
+  uploads_data:
+  temp_data:
+
+networks:
+  fileforge-network:
+    driver: bridge

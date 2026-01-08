@@ -1,96 +1,281 @@
-# PDF Combiner
+# 📄 FileForge - Enterprise File Processing Platform
 
-A simple and user-friendly web application to combine multiple PDF files into one. Built with Python Flask and a clean, modern UI.
+A production-ready, scalable file processing platform similar to iLovePDF/SmallPDF. Built with Next.js, FastAPI, and modern cloud infrastructure.
 
-## Features
+## ✨ Features
 
-- 📄 **Multiple PDF Upload**: Upload 2 or more PDF files
-- ✏️ **Custom Filename**: Rename the combined output file
-- 🎨 **User-Friendly Interface**: Clean, modern design with drag-and-drop support
-- ⬇️ **Instant Download**: Download the combined PDF directly to your system
-- 🔒 **Secure**: File validation and secure filename handling
+- **PDF Tools**: Merge, split, compress, convert PDFs
+- **Document Conversion**: PDF ↔ Word, Excel, Images
+- **Image Processing**: Format conversion, compression, optimization
+- **Batch Processing**: Handle multiple files simultaneously
+- **User Management**: Guest and registered users with full authentication
+- **Real-time Progress**: WebSocket-based job tracking
+- **Cloud Storage**: S3-compatible storage with CDN support
+- **Enterprise Security**: Rate limiting, file validation, CSRF protection
 
-## Prerequisites
+## 🚀 Tech Stack
 
-- Python 3.7 or higher
-- pip (Python package installer)
+### Frontend
+- Next.js 14+ (App Router)
+- TypeScript (Strict Mode)
+- Tailwind CSS + ShadCN UI
+- Framer Motion
+- TanStack Query
+- React Hook Form + Zod
+- NextAuth.js
 
-## Installation
+### Backend
+- Python 3.11+
+- FastAPI
+- PostgreSQL + SQLAlchemy (Async)
+- Redis (Caching + Queue)
+- Celery (Background Jobs)
+- JWT Authentication
+- S3-compatible Storage
 
-1. Clone the repository:
+### DevOps
+- Docker + Docker Compose
+- Nginx Reverse Proxy
+- Multi-stage Builds
+- CI/CD Ready
+
+## 📋 Prerequisites
+
+- Docker & Docker Compose
+- Node.js 18+ (for local development)
+- Python 3.11+ (for local development)
+
+## 🔧 Quick Start
+
+### 1. Clone & Configure
+
 ```bash
-git clone https://github.com/mihirsangani/pdf-combiner.git
+git clone <repository>
 cd pdf-combiner
+
+# Copy environment files
+cp backend/.env.example backend/.env
+cp frontend/.env.example frontend/.env.local
+
+# Edit .env files with your configuration
 ```
 
-2. Create a virtual environment (recommended):
+### 2. Start with Docker
+
 ```bash
+# Start all services
+docker-compose up -d
+
+# View logs
+docker-compose logs -f
+
+# Stop services
+docker-compose down
+```
+
+### 3. Access the Platform
+
+- **Frontend**: http://localhost:3000
+- **Backend API**: http://localhost:8000
+- **API Docs**: http://localhost:8000/docs
+- **pgAdmin**: http://localhost:5050
+
+## 🛠️ Local Development
+
+### Backend
+
+```bash
+cd backend
+
+# Create virtual environment
 python -m venv venv
+source venv/bin/activate  # Windows: venv\Scripts\activate
 
-# On Windows
-venv\Scripts\activate
-
-# On macOS/Linux
-source venv/bin/activate
-```
-
-3. Install dependencies:
-```bash
+# Install dependencies
 pip install -r requirements.txt
+
+# Run migrations
+alembic upgrade head
+
+# Start dev server
+uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+
+# Start Celery worker
+celery -A app.workers.celery_app worker --loglevel=info
 ```
 
-## Usage
+### Frontend
 
-1. Start the application:
 ```bash
-python app.py
+cd frontend
+
+# Install dependencies
+npm install
+
+# Start dev server
+npm run dev
+
+# Build for production
+npm run build
+npm start
 ```
 
-2. For development with debug mode enabled:
+## 📁 Project Structure
+
+```
+pdf-combiner/
+├── backend/                 # FastAPI backend
+│   ├── app/
+│   │   ├── api/            # API routes
+│   │   ├── core/           # Core configuration
+│   │   ├── models/         # Database models
+│   │   ├── schemas/        # Pydantic schemas
+│   │   ├── services/       # Business logic
+│   │   ├── repositories/   # Data access
+│   │   ├── workers/        # Background tasks
+│   │   └── utils/          # Utilities
+│   ├── tests/
+│   ├── Dockerfile
+│   └── requirements.txt
+├── frontend/               # Next.js frontend
+│   ├── app/               # App router pages
+│   ├── components/        # React components
+│   ├── hooks/            # Custom hooks
+│   ├── lib/              # Utilities
+│   └── public/           # Static assets
+├── nginx/                # Nginx configuration
+└── docker-compose.yml    # Orchestration
+```
+
+## 🔒 Security Features
+
+- JWT-based authentication with refresh tokens
+- Rate limiting per IP and user
+- File type validation (MIME + extension)
+- Virus scanning integration ready
+- CORS protection
+- CSRF tokens
+- Secure file upload/download with signed URLs
+- Auto file cleanup (TTL-based)
+- SQL injection prevention
+- XSS protection
+
+## 🎯 API Endpoints
+
+### Authentication
+- `POST /api/v1/auth/register` - Register new user
+- `POST /api/v1/auth/login` - Login
+- `POST /api/v1/auth/refresh` - Refresh token
+- `GET /api/v1/auth/me` - Get current user
+
+### File Operations
+- `POST /api/v1/tools/pdf/merge` - Merge PDFs
+- `POST /api/v1/tools/pdf/split` - Split PDF
+- `POST /api/v1/tools/pdf/compress` - Compress PDF
+- `POST /api/v1/tools/convert/pdf-to-word` - PDF to Word
+- `POST /api/v1/tools/convert/word-to-pdf` - Word to PDF
+- `POST /api/v1/tools/convert/image-to-pdf` - Image to PDF
+- `POST /api/v1/tools/convert/pdf-to-image` - PDF to Image
+- `POST /api/v1/tools/image/convert` - Image format conversion
+
+### Jobs & Status
+- `GET /api/v1/jobs/{job_id}` - Get job status
+- `GET /api/v1/jobs/{job_id}/download` - Download result
+- `GET /api/v1/jobs/history` - User job history
+
+## 🎨 Design System
+
+The platform uses a modern, minimalist design with:
+- Soft shadows and glassmorphism effects
+- Smooth micro-interactions
+- Comprehensive animation system
+- Dark mode support
+- Fully accessible (WCAG 2.1 AA)
+- Mobile-first responsive design
+
+## 📊 Performance
+
+- Async I/O throughout
+- Redis caching layer
+- Connection pooling
+- Lazy loading & code splitting
+- Image optimization
+- CDN-ready static assets
+- Database query optimization
+- Horizontal scaling ready
+
+## 🧪 Testing
+
 ```bash
-FLASK_DEBUG=true python app.py
+# Backend tests
+cd backend
+pytest
+
+# Frontend tests
+cd frontend
+npm test
+
+# E2E tests
+npm run test:e2e
 ```
 
-3. Open your web browser and navigate to:
+## 📈 Monitoring & Logging
+
+- Structured JSON logging
+- Health check endpoints
+- Prometheus metrics ready
+- Error tracking (Sentry integration ready)
+- Performance monitoring
+
+## 🚢 Production Deployment
+
+### Environment Variables
+
+See `.env.example` files for all required variables.
+
+### Docker Production Build
+
+```bash
+# Build images
+docker-compose -f docker-compose.prod.yml build
+
+# Deploy
+docker-compose -f docker-compose.prod.yml up -d
 ```
-http://localhost:5000
-```
 
-4. Use the application:
-   - Click on the upload area or drag and drop multiple PDF files
-   - Enter a custom name for the combined PDF (optional)
-   - Click "Combine PDFs" button
-   - The combined PDF will be automatically downloaded to your system
+### Cloud Deployment
 
-## How It Works
+Platform is ready for:
+- AWS (ECS, EKS, Lambda)
+- GCP (Cloud Run, GKE)
+- Azure (Container Instances, AKS)
+- Vercel (Frontend)
+- Railway, Render, Fly.io
 
-The application consists of:
-- **Backend (app.py)**: Flask web server that handles file uploads and PDF combining using pypdf library
-- **Frontend (templates/index.html)**: Modern, responsive web interface with drag-and-drop functionality
+## 🔄 Scaling Considerations
 
-## Technical Details
+- Stateless architecture (horizontal scaling)
+- Database read replicas
+- Redis cluster for high availability
+- CDN for static assets
+- Load balancer ready
+- Queue-based job processing
+- Microservices architecture ready
 
-- **Backend Framework**: Flask
-- **PDF Library**: pypdf (for combining PDFs)
-- **Frontend**: HTML5, CSS3, JavaScript (vanilla)
-- **File Size Limit**: 50MB per request
-- **Supported Format**: PDF files only
+## 📝 License
 
-## Security Features
+MIT License - feel free to use for commercial projects
 
-- File type validation (PDF only)
-- Secure filename handling
-- File size limits
-- Temporary file cleanup
+## 🤝 Contributing
 
-## License
+Contributions welcome! Please read CONTRIBUTING.md
 
-This project is open source and available for personal and commercial use.
+## 📞 Support
 
-## Contributing
+- Documentation: `/docs`
+- API Reference: `http://localhost:8000/docs`
+- Issues: GitHub Issues
 
-Contributions are welcome! Please feel free to submit a Pull Request.
+---
 
-## Support
-
-If you encounter any issues or have questions, please open an issue on GitHub.
+Built with ❤️ for enterprise-grade file processing
