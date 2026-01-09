@@ -324,41 +324,96 @@ def convert_images_to_pdf_task(
 ):
     """Convert images to PDF"""
     try:
-        logger.info("Starting images to PDF conversion", job_id=job_id)
+        logger.info("Starting images to PDF conversion", extra={
+            "job_id": job_id,
+            "file_count": len(file_ids),
+            "output_filename": output_filename
+        })
         update_job_status(job_id, "processing", 10)
+        logger.info(f"Job {job_id} status updated to processing")
         
+        logger.info(f"Retrieving file paths for {len(file_ids)} files", extra={"job_id": job_id})
         file_paths = get_file_paths(file_ids)
+        logger.info(f"Retrieved {len(file_paths)} file paths", extra={
+            "job_id": job_id,
+            "paths": [str(p) for p in file_paths]
+        })
         
         # Open images
-        images = [Image.open(str(path)) for path in file_paths]
+        logger.info(f"Opening {len(file_paths)} images", extra={"job_id": job_id})
+        images = []
+        for idx, path in enumerate(file_paths):
+            logger.debug(f"Opening image {idx + 1}/{len(file_paths)}: {path}", extra={"job_id": job_id})
+            try:
+                img = Image.open(str(path))
+                logger.debug(f"Image {idx + 1} opened successfully - mode: {img.mode}, size: {img.size}", extra={"job_id": job_id})
+                images.append(img)
+            except Exception as e:
+                logger.error(f"Failed to open image {idx + 1} ({path}): {str(e)}", extra={"job_id": job_id})
+                raise
+        
+        logger.info(f"Successfully opened {len(images)} images", extra={"job_id": job_id})
+        update_job_status(job_id, "processing", 30)
         
         # Convert to RGB if necessary
+        logger.info("Converting images to RGB mode", extra={"job_id": job_id})
         images_rgb = []
-        for img in images:
+        for idx, img in enumerate(images):
+            logger.debug(f"Converting image {idx + 1}/{len(images)} - original mode: {img.mode}", extra={"job_id": job_id})
             if img.mode != 'RGB':
+                logger.debug(f"Image {idx + 1} requires conversion from {img.mode} to RGB", extra={"job_id": job_id})
                 img = img.convert('RGB')
+                logger.debug(f"Image {idx + 1} converted to RGB successfully", extra={"job_id": job_id})
             images_rgb.append(img)
+        
+        logger.info(f"All {len(images_rgb)} images converted to RGB", extra={"job_id": job_id})
+        update_job_status(job_id, "processing", 60)
         
         # Save as PDF
         output_path = settings.UPLOAD_DIR / output_filename
-        images_rgb[0].save(
-            str(output_path),
-            save_all=True,
-            append_images=images_rgb[1:] if len(images_rgb) > 1 else []
-        )
+        logger.info(f"Saving PDF to {output_path}", extra={"job_id": job_id})
+        try:
+            images_rgb[0].save(
+                str(output_path),
+                save_all=True,
+                append_images=images_rgb[1:] if len(images_rgb) > 1 else [],
+                format="PDF"
+            )
+            logger.info(f"PDF saved successfully to {output_path}", extra={
+                "job_id": job_id,
+                "file_size": output_path.stat().st_size if output_path.exists() else 0
+            })
+        except Exception as e:
+            logger.error(f"Failed to save PDF: {str(e)}", extra={"job_id": job_id})
+            raise
         
+        update_job_status(job_id, "processing", 80)
+        
+        logger.info(f"Creating output file record for job {job_id}", extra={"job_id": job_id})
         output_file_id = create_output_file(
             job_id,
             output_path,
             output_filename,
             "application/pdf"
         )
+        logger.info(f"Output file record created with ID: {output_file_id}", extra={
+            "job_id": job_id,
+            "output_file_id": output_file_id
+        })
         
         update_job_status(job_id, "completed", 100, output_file_id)
-        logger.info("Images to PDF conversion completed", job_id=job_id)
+        logger.info("Images to PDF conversion completed successfully", extra={
+            "job_id": job_id,
+            "output_file_id": output_file_id,
+            "output_filename": output_filename
+        })
         
     except Exception as e:
-        logger.error("Images to PDF conversion failed", job_id=job_id, error=str(e))
+        logger.error("Images to PDF conversion failed", extra={
+            "job_id": job_id,
+            "error": str(e),
+            "error_type": type(e).__name__
+        }, exc_info=True)
         update_job_status(job_id, "failed", 0, error_message=str(e))
 
 
@@ -451,20 +506,16 @@ def cleanup_expired_files():
 # Helper functions
 def get_file_paths(file_ids: List[str]) -> List[Path]:
     """Get file paths from file IDs"""
-    from app.db.session import AsyncSessionLocal
+    from app.db.session import get_session_local
     from app.models.models import File
-    from sqlalchemy import select
-    import asyncio
     
-    async def get_paths():
-        async with AsyncSessionLocal() as db:
-            result = await db.execute(
-                select(File).where(File.file_id.in_(file_ids))
-            )
-            files = result.scalars().all()
-            return [Path(f.file_path) for f in files]
-    
-    return asyncio.run(get_paths())
+    SessionLocal = get_session_local()
+    db = SessionLocal()
+    try:
+        files = db.query(File).filter(File.file_id.in_(file_ids)).all()
+        return [Path(f.file_path) for f in files]
+    finally:
+        db.close()
 
 
 def update_job_status(
@@ -475,36 +526,40 @@ def update_job_status(
     error_message: Optional[str] = None
 ):
     """Update job status in database"""
-    from app.db.session import AsyncSessionLocal
+    from app.db.session import get_session_local
     from app.models.models import Job, JobStatus
-    from sqlalchemy import select
-    import asyncio
     
-    async def update():
-        async with AsyncSessionLocal() as db:
-            result = await db.execute(
-                select(Job).where(Job.job_id == job_id)
-            )
-            job = result.scalar_one_or_none()
+    db = None
+    try:
+        SessionLocal = get_session_local()
+        db = SessionLocal()
+        
+        job = db.query(Job).filter(Job.job_id == job_id).first()
+        
+        if job:
+            job.status = JobStatus(status)
+            job.progress = progress
+            if output_file_id:
+                job.output_file_id = int(output_file_id) if isinstance(output_file_id, str) and output_file_id.isdigit() else output_file_id
+            if error_message:
+                job.error_message = error_message
+            job.updated_at = datetime.utcnow()
             
-            if job:
-                job.status = JobStatus(status)
-                job.progress = progress
-                if output_file_id:
-                    job.output_file_id = output_file_id
-                if error_message:
-                    job.error_message = error_message
-                job.updated_at = datetime.utcnow()
-                
-                if status == "completed":
-                    job.processing_completed_at = datetime.utcnow()
-                    if job.processing_started_at:
-                        delta = job.processing_completed_at - job.processing_started_at
-                        job.processing_time_seconds = delta.total_seconds()
-                
-                await db.commit()
-    
-    asyncio.run(update())
+            if status == "completed":
+                job.processing_completed_at = datetime.utcnow()
+                if job.processing_started_at:
+                    delta = job.processing_completed_at - job.processing_started_at
+                    job.processing_time_seconds = delta.total_seconds()
+            
+            db.commit()
+            logger.info(f"Updated job {job_id} status to {status}")
+        else:
+            logger.warning(f"Job {job_id} not found")
+    except Exception as e:
+        logger.error(f"Error updating job status: {str(e)}")
+    finally:
+        if db:
+            db.close()
 
 
 def create_output_file(
@@ -514,42 +569,40 @@ def create_output_file(
     mime_type: str
 ) -> str:
     """Create output file record"""
-    from app.db.session import AsyncSessionLocal
+    from app.db.session import get_session_local
     from app.models.models import File, Job, FileType
-    from sqlalchemy import select
-    import asyncio
     import uuid
     from datetime import timedelta
     
-    async def create():
-        async with AsyncSessionLocal() as db:
-            # Get job
-            result = await db.execute(
-                select(Job).where(Job.job_id == job_id)
-            )
-            job = result.scalar_one()
-            
-            # Create file record
-            file_id = str(uuid.uuid4())
-            file = File(
-                file_id=file_id,
-                original_filename=filename,
-                stored_filename=file_path.name,
-                file_path=str(file_path),
-                file_size=file_path.stat().st_size,
-                file_type=FileType.PDF if "pdf" in mime_type else FileType.OTHER,
-                mime_type=mime_type,
-                checksum="",
-                user_id=job.user_id,
-                guest_token=job.guest_token,
-                is_input=False,
-                expires_at=datetime.utcnow() + timedelta(hours=settings.FILE_TTL_HOURS)
-            )
-            
-            db.add(file)
-            await db.commit()
-            await db.refresh(file)
-            
-            return file.id
-    
-    return asyncio.run(create())
+    SessionLocal = get_session_local()
+    db = SessionLocal()
+    try:
+        job = db.query(Job).filter(Job.job_id == job_id).first()
+        
+        if not job:
+            raise ValueError(f"Job {job_id} not found")
+        
+        file_id = str(uuid.uuid4())
+        file = File(
+            file_id=file_id,
+            original_filename=filename,
+            stored_filename=file_path.name,
+            file_path=str(file_path),
+            file_size=file_path.stat().st_size,
+            file_type=FileType.PDF if "pdf" in mime_type else FileType.OTHER,
+            mime_type=mime_type,
+            checksum="",
+            user_id=job.user_id,
+            guest_token=job.guest_token,
+            is_input=False,
+            expires_at=datetime.utcnow() + timedelta(hours=settings.FILE_TTL_HOURS)
+        )
+        
+        db.add(file)
+        db.commit()
+        db.refresh(file)
+        
+        logger.info(f"Created output file {file.id} for job {job_id}")
+        return str(file.id)
+    finally:
+        db.close()

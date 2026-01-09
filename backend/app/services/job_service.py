@@ -6,7 +6,7 @@ from sqlalchemy import select, desc
 from sqlalchemy.ext.asyncio import AsyncSession
 from datetime import datetime
 
-from app.models.models import Job, JobStatus
+from app.models.models import Job, JobStatus, File
 from app.schemas.schemas import JobStatusResponse, JobHistory
 from app.core.logging import get_logger
 
@@ -50,7 +50,13 @@ class JobService:
         
         result_url = None
         if job.status == JobStatus.COMPLETED and job.output_file_id:
-            result_url = f"/api/v1/files/{job.output_file_id}/download"
+            # output_file_id stores the numeric PK; we need the public file_id uuid for download
+            file_id_row = await self.db.execute(
+                select(File.file_id).where(File.id == job.output_file_id)
+            )
+            file_uuid = file_id_row.scalar_one_or_none()
+            if file_uuid:
+                result_url = f"/api/v1/files/{file_uuid}/download"
         
         return JobStatusResponse(
             job_id=job.job_id,
